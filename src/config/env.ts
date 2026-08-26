@@ -43,17 +43,21 @@ try {
   env = envSchema.parse(process.env);
 } catch (error) {
   if (error instanceof z.ZodError) {
+    // eslint-disable-next-line no-console
     console.error('❌ Invalid environment variables:');
     error.issues.forEach((issue) => {
+      // eslint-disable-next-line no-console
       console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
     });
   } else {
+    // eslint-disable-next-line no-console
     console.error('❌ Failed to parse environment variables:', error);
   }
   process.exit(1);
 }
 
 if (env.UPLOAD_STORAGE_DRIVER === 's3' && !env.AWS_S3_BUCKET) {
+  // eslint-disable-next-line no-console
   console.error('❌ AWS_S3_BUCKET is required when UPLOAD_STORAGE_DRIVER=s3');
   process.exit(1);
 }

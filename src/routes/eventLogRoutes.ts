@@ -9,29 +9,26 @@ const router = Router();
 router.use(authenticate);
 
 // Get last processed ledger sequence
-router.get(
-  '/last-processed',
-  eventLogController.getLastProcessedLedger.bind(eventLogController)
-);
+router.get('/last-processed', eventLogController.getLastProcessedLedger.bind(eventLogController));
 
 // Get unprocessed events
 router.get(
   '/unprocessed',
   requireRole(['admin', 'monitor']),
-  eventLogController.getUnprocessedEvents.bind(eventLogController)
+  eventLogController.getUnprocessedEvents.bind(eventLogController),
 );
 
 // Get events by ledger range
 router.get(
   '/range',
   requireRole(['admin', 'monitor']),
-  eventLogController.getEventsByLedgerRange.bind(eventLogController)
+  eventLogController.getEventsByLedgerRange.bind(eventLogController),
 );
 
 // Get event by transaction hash
 router.get(
   '/transaction/:hash',
-  eventLogController.getEventByTransactionHash.bind(eventLogController)
+  eventLogController.getEventByTransactionHash.bind(eventLogController),
 );
 
 export default router;

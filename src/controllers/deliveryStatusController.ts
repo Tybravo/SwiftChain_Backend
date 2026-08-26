@@ -60,4 +60,3 @@ export const updateDeliveryStatus = async (
     next(error as Error);
   }
 };
-

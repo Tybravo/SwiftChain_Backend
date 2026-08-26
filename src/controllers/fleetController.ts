@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createFleet as createFleetService,
   inviteDriver as inviteDriverService,
   respondToInvitation as respondToInvitationService,
   getFleetMetrics as getFleetMetricsService,
@@ -68,7 +67,7 @@ export const createFleet = async (
 
     // Validate required fields
     const { name, treasuryAddress, businessMetadata } = req.body;
-    
+
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       throw new AppError(
         'A fleet name of at least 2 characters is required.',
@@ -77,17 +76,11 @@ export const createFleet = async (
     }
 
     if (!treasuryAddress || typeof treasuryAddress !== 'string') {
-      throw new AppError(
-        'Treasury address is required.',
-        StatusCodes.BAD_REQUEST,
-      );
+      throw new AppError('Treasury address is required.', StatusCodes.BAD_REQUEST);
     }
 
     if (!businessMetadata || typeof businessMetadata !== 'object') {
-      throw new AppError(
-        'Business metadata is required.',
-        StatusCodes.BAD_REQUEST,
-      );
+      throw new AppError('Business metadata is required.', StatusCodes.BAD_REQUEST);
     }
 
     // Create fleet with all fields
@@ -95,11 +88,13 @@ export const createFleet = async (
       name: name.trim(),
       treasuryAddress: treasuryAddress.trim(),
       ownerId: owner._id,
-      members: [{
-        userId: owner._id,
-        role: 'admin',
-        joinedAt: new Date()
-      }],
+      members: [
+        {
+          userId: owner._id,
+          role: 'admin',
+          joinedAt: new Date(),
+        },
+      ],
       businessMetadata: {
         companyName: businessMetadata.companyName,
         industry: businessMetadata.industry || '',
@@ -249,7 +244,7 @@ export const getFleetMetrics = async (
 export const getAllFleets = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const user = (req as Request & { user?: IUser }).user;
@@ -294,7 +289,7 @@ export const getAllFleets = async (
 export const getFleetById = async (
   req: Request<{ id: string }>,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const user = (req as Request & { user?: IUser }).user;
@@ -332,7 +327,7 @@ export const getFleetById = async (
 export const updateFleet = async (
   req: Request<{ id: string }>,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const user = (req as Request & { user?: IUser }).user;
@@ -364,10 +359,10 @@ export const updateFleet = async (
     const updatedFleet = await Fleet.findByIdAndUpdate(
       id,
       { ...updateData, updatedAt: new Date() },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     )
-    .populate('ownerId', 'name email')
-    .populate('members.userId', 'name email role');
+      .populate('ownerId', 'name email')
+      .populate('members.userId', 'name email role');
 
     res.status(StatusCodes.OK).json({
       status: 'success',
@@ -386,7 +381,7 @@ export const updateFleet = async (
 export const deleteFleet = async (
   req: Request<{ id: string }>,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const user = (req as Request & { user?: IUser }).user;
@@ -428,7 +423,7 @@ export const deleteFleet = async (
 export const addMember = async (
   req: Request<{ id: string }, unknown, { userId: string; role?: string }>,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const user = (req as Request & { user?: IUser }).user;
@@ -461,9 +456,7 @@ export const addMember = async (
       throw new AppError('Only the fleet owner can add members.', StatusCodes.FORBIDDEN);
     }
 
-    const isMember = fleet.members.some(
-      (m) => m.userId.toString() === userId
-    );
+    const isMember = fleet.members.some((m) => m.userId.toString() === userId);
     if (isMember) {
       throw new AppError('User is already a member of this fleet.', StatusCodes.CONFLICT);
     }
@@ -495,7 +488,7 @@ export const addMember = async (
 export const removeMember = async (
   req: Request<{ id: string; userId: string }>,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const user = (req as Request & { user?: IUser }).user;
@@ -522,9 +515,7 @@ export const removeMember = async (
       throw new AppError('Cannot remove the fleet owner.', StatusCodes.BAD_REQUEST);
     }
 
-    const memberIndex = fleet.members.findIndex(
-      (m) => m.userId.toString() === userId
-    );
+    const memberIndex = fleet.members.findIndex((m) => m.userId.toString() === userId);
 
     if (memberIndex === -1) {
       throw new AppError('Member not found in this fleet.', StatusCodes.NOT_FOUND);

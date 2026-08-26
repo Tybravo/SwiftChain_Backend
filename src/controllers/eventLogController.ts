@@ -12,7 +12,7 @@ export class EventLogController {
     try {
       const { eventType } = req.query;
       const lastLedger = await eventLogService.getLastProcessedLedger(
-        eventType as string | undefined
+        eventType as string | undefined,
       );
       return res.status(StatusCodes.OK).json({
         success: true,
@@ -56,7 +56,7 @@ export class EventLogController {
   async getEventsByLedgerRange(req: Request, res: Response): Promise<Response> {
     try {
       const { startLedger, endLedger, eventType } = req.query;
-      
+
       if (!startLedger || !endLedger) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           success: false,
@@ -67,9 +67,9 @@ export class EventLogController {
       const events = await eventLogService.getEventsByLedgerRange(
         parseInt(startLedger as string),
         parseInt(endLedger as string),
-        eventType as string | undefined
+        eventType as string | undefined,
       );
-      
+
       return res.status(StatusCodes.OK).json({
         success: true,
         data: events,
@@ -92,7 +92,7 @@ export class EventLogController {
     try {
       const { hash } = req.params;
       const event = await eventLogService.getEventByTransactionHash(hash);
-      
+
       if (!event) {
         return res.status(StatusCodes.NOT_FOUND).json({
           success: false,

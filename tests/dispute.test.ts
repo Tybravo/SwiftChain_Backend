@@ -74,7 +74,7 @@ const createDelivery = async (overrides: {
   userId: string;
   driverId?: string;
   status?: DeliveryStatus;
-}) => {
+}): Promise<InstanceType<typeof Delivery>> => {
   return Delivery.create({
     userId: overrides.userId,
     driverId: overrides.driverId,
@@ -84,7 +84,7 @@ const createDelivery = async (overrides: {
   });
 };
 
-const validBody = (deliveryId: string) => ({
+const validBody = (deliveryId: string): Record<string, unknown> => ({
   deliveryId,
   reason: DisputeReason.DAMAGED_PACKAGE,
   description: 'The package arrived with visible damage to the packaging and contents.',
@@ -420,9 +420,7 @@ describe('GET /api/v1/disputes', () => {
       .set('Authorization', `Bearer ${token}`)
       .send(validBody(delivery._id.toString()));
 
-    const res = await request(app)
-      .get('/api/v1/disputes')
-      .set('Authorization', `Bearer ${token}`);
+    const res = await request(app).get('/api/v1/disputes').set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
@@ -569,12 +567,10 @@ describe('PATCH /api/v1/disputes/:id/resolve', () => {
 
       const disputeId = createRes.body.data.dispute._id;
 
-      const res = await request(app)
-        .patch(`/api/v1/disputes/${disputeId}/resolve`)
-        .send({
-          status: DisputeStatus.RESOLVED,
-          resolutionNotes: 'Some resolution.',
-        });
+      const res = await request(app).patch(`/api/v1/disputes/${disputeId}/resolve`).send({
+        status: DisputeStatus.RESOLVED,
+        resolutionNotes: 'Some resolution.',
+      });
 
       expect(res.status).toBe(401);
     });
@@ -662,9 +658,7 @@ describe('PATCH /api/v1/disputes/:id/evidence', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.dispute.evidenceUrls).toHaveLength(2);
-      expect(res.body.data.dispute.evidenceUrls).toContain(
-        'https://example.com/evidence1.jpg',
-      );
+      expect(res.body.data.dispute.evidenceUrls).toContain('https://example.com/evidence1.jpg');
     });
 
     it('does not duplicate existing evidence URLs', async () => {

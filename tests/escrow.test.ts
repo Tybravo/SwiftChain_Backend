@@ -71,7 +71,9 @@ const createUser = async (
 };
 
 /** Creates an escrow record with a lock period that has already expired. */
-const createExpiredEscrow = async (overrides: Partial<{ amount: number }> = {}) => {
+const createExpiredEscrow = async (
+  overrides: Partial<{ amount: number }> = {},
+): Promise<InstanceType<typeof Escrow>> => {
   return Escrow.create({
     deliveryId: new mongoose.Types.ObjectId().toString(),
     amount: overrides.amount ?? 100,
@@ -82,7 +84,7 @@ const createExpiredEscrow = async (overrides: Partial<{ amount: number }> = {}) 
 };
 
 /** Creates an escrow record whose TTL has not yet elapsed. */
-const createActiveEscrow = async () => {
+const createActiveEscrow = async (): Promise<InstanceType<typeof Escrow>> => {
   return Escrow.create({
     deliveryId: new mongoose.Types.ObjectId().toString(),
     amount: 100,

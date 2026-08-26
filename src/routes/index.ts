@@ -1,4 +1,3 @@
-// @ts-ignore: express types may be missing in this project setup
 import { Router } from 'express';
 import authRoutes from './authRoutes';
 import deliveryCrudRoutes from './delivery.routes';

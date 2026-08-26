@@ -34,13 +34,13 @@ export function parseXdrEvent(xdrPayload: string): ParsedEvent | null {
     }
 
     const decoded = decodeXdrPayload(xdrPayload);
-    
+
     if (isDeliveryEvent(decoded)) {
       return parseDeliveryEvent(decoded);
     } else if (isEscrowEvent(decoded)) {
       return parseEscrowEvent(decoded);
     }
-    
+
     return null;
   } catch (error) {
     logger.error('Failed to parse XDR payload:', error);
@@ -48,7 +48,7 @@ export function parseXdrEvent(xdrPayload: string): ParsedEvent | null {
   }
 }
 
-function decodeXdrPayload(xdrPayload: string): any {
+function decodeXdrPayload(xdrPayload: string): Record<string, unknown> {
   try {
     const buffer = Buffer.from(xdrPayload, 'base64');
     const decoded = JSON.parse(buffer.toString('utf8'));
@@ -59,35 +59,35 @@ function decodeXdrPayload(xdrPayload: string): any {
   }
 }
 
-function isDeliveryEvent(decoded: any): boolean {
-  return decoded.type === 'delivery' && decoded.deliveryId;
+function isDeliveryEvent(decoded: Record<string, unknown>): boolean {
+  return decoded.type === 'delivery' && !!decoded.deliveryId;
 }
 
-function isEscrowEvent(decoded: any): boolean {
-  return decoded.type === 'escrow' && decoded.escrowId;
+function isEscrowEvent(decoded: Record<string, unknown>): boolean {
+  return decoded.type === 'escrow' && !!decoded.escrowId;
 }
 
-function parseDeliveryEvent(decoded: any): ParsedDelivery {
+function parseDeliveryEvent(decoded: Record<string, unknown>): ParsedDelivery {
   return {
     type: 'delivery',
-    deliveryId: decoded.deliveryId || '',
-    recipient: decoded.recipient || '',
-    amount: decoded.amount || '0',
-    asset: decoded.asset || 'XLM',
-    timestamp: decoded.timestamp || Date.now()
+    deliveryId: (decoded.deliveryId as string) || '',
+    recipient: (decoded.recipient as string) || '',
+    amount: (decoded.amount as string) || '0',
+    asset: (decoded.asset as string) || 'XLM',
+    timestamp: (decoded.timestamp as number) || Date.now(),
   };
 }
 
-function parseEscrowEvent(decoded: any): ParsedEscrow {
+function parseEscrowEvent(decoded: Record<string, unknown>): ParsedEscrow {
   return {
     type: 'escrow',
-    escrowId: decoded.escrowId || '',
+    escrowId: (decoded.escrowId as string) || '',
     client: decoded.client || '',
     freelancer: decoded.freelancer || '',
     amount: decoded.amount || '0',
     asset: decoded.asset || 'XLM',
     releaseCondition: decoded.releaseCondition || '',
-    timestamp: decoded.timestamp || Date.now()
+    timestamp: decoded.timestamp || Date.now(),
   };
 }
 
@@ -106,19 +106,19 @@ export function isValidXdr(xdrPayload: string): boolean {
     if (!xdrPayload || xdrPayload.trim() === '') {
       return false;
     }
-    
+
     // Remove whitespace and check if string is empty
     const trimmed = xdrPayload.trim();
     if (trimmed === '') {
       return false;
     }
-    
+
     // 🔥 Check that the string only contains valid base64 characters (no spaces)
     const base64Regex = /^[A-Za-z0-9+/=]+$/;
     if (!base64Regex.test(trimmed)) {
       return false;
     }
-    
+
     // 🔥 Check that the string length is a multiple of 4 (base64 requirement)
     if (trimmed.length % 4 !== 0) {
       // Some base64 strings can be without padding, but we'll be strict
@@ -127,13 +127,13 @@ export function isValidXdr(xdrPayload: string): boolean {
         return false;
       }
     }
-    
+
     // Check if it's valid base64
     const buffer = Buffer.from(trimmed, 'base64');
     if (buffer.length === 0) {
       return false;
     }
-    
+
     return true;
   } catch {
     return false;

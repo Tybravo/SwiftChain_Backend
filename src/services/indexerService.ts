@@ -38,7 +38,7 @@ export class IndexerService {
       logger.error(
         `[IndexerService] Error fetching indexer status: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
       throw error;
     }

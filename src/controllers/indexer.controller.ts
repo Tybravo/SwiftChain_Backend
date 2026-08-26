@@ -27,11 +27,12 @@ export class IndexerController {
         message: 'Delivery updated successfully',
         data: updatedDelivery,
       });
-    } catch (error: any) {
-      logger.error(`IndexerController - handleDeliveryCreated error: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`IndexerController - handleDeliveryCreated error: ${errorMessage}`);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: error.message || 'Internal Server Error',
+        message: errorMessage || 'Internal Server Error',
       });
     }
   }

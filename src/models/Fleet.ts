@@ -15,7 +15,7 @@ const fleetSchema = new Schema<IFleet>(
       required: [true, 'Treasury address is required'],
       trim: true,
       validate: {
-        validator: (v: string) => /^G[A-Z0-9]{55}$/.test(v),
+        validator: (v: string): boolean => /^G[A-Z0-9]{55}$/.test(v),
         message: 'Invalid Stellar address format. Must start with G and be 56 characters long.',
       },
     },
@@ -93,11 +93,11 @@ const fleetSchema = new Schema<IFleet>(
       default: [],
     },
   },
-  { 
+  {
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 // Indexes for performance
@@ -109,7 +109,7 @@ fleetSchema.index({ treasuryAddress: 1 }, { unique: true });
 fleetSchema.pre('save', function (next) {
   if (this.isNew) {
     const ownerExists = this.members.some(
-      (member) => member.userId.toString() === this.ownerId.toString()
+      (member) => member.userId.toString() === this.ownerId.toString(),
     );
     if (!ownerExists) {
       this.members.push({
@@ -124,9 +124,7 @@ fleetSchema.pre('save', function (next) {
 
 // Virtual to get driver IDs from members
 fleetSchema.virtual('driverIds').get(function () {
-  return this.members
-    .filter(m => m.role === 'driver' || m.role === 'admin')
-    .map(m => m.userId);
+  return this.members.filter((m) => m.role === 'driver' || m.role === 'admin').map((m) => m.userId);
 });
 
 const Fleet = mongoose.model<IFleet>('Fleet', fleetSchema);

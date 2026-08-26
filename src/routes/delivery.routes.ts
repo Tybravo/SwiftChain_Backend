@@ -1,10 +1,7 @@
 import { Router } from 'express';
 import { deliveryController } from '../controllers/delivery.controller';
 import { validateRequest } from '../middlewares/validateRequest';
-import {
-  createDeliverySchema,
-  updateDeliverySchema,
-} from '../validators/deliveryValidator';
+import { createDeliverySchema, updateDeliverySchema } from '../validators/deliveryValidator';
 
 const router = Router();
 
@@ -73,7 +70,7 @@ const router = Router();
 router.post(
   '/',
   validateRequest({ body: createDeliverySchema }),
-  deliveryController.create.bind(deliveryController)
+  deliveryController.create.bind(deliveryController),
 );
 
 router.get('/', deliveryController.list.bind(deliveryController));
@@ -103,10 +100,7 @@ router.get('/', deliveryController.list.bind(deliveryController));
  *             schema:
  *               $ref: '#/components/schemas/DeliveryListResponse'
  */
-router.get(
-  '/archived',
-  deliveryController.listArchived.bind(deliveryController)
-);
+router.get('/archived', deliveryController.listArchived.bind(deliveryController));
 
 /**
  * @openapi
@@ -171,7 +165,7 @@ router.get('/:id', deliveryController.getById.bind(deliveryController));
 router.patch(
   '/:id',
   validateRequest({ body: updateDeliverySchema }),
-  deliveryController.update.bind(deliveryController)
+  deliveryController.update.bind(deliveryController),
 );
 
 /**
@@ -202,10 +196,7 @@ router.patch(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.patch(
-  '/:id/archive',
-  deliveryController.archive.bind(deliveryController)
-);
+router.patch('/:id/archive', deliveryController.archive.bind(deliveryController));
 
 /**
  * @openapi
@@ -235,9 +226,6 @@ router.patch(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.patch(
-  '/:id/restore',
-  deliveryController.restore.bind(deliveryController)
-);
+router.patch('/:id/restore', deliveryController.restore.bind(deliveryController));
 
 export default router;

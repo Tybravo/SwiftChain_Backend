@@ -99,7 +99,7 @@ export const getDisputeById = async (id: string): Promise<IDispute> => {
   return dispute;
 };
 
-export const getDisputes = async (filters: DisputeFilter) => {
+export const getDisputes = async (filters: DisputeFilter): Promise<unknown> => {
   const { status, raisedBy, deliveryId, reason, page = 1, limit = 10 } = filters;
   const query: Record<string, unknown> = {};
 

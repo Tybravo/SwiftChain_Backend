@@ -3,17 +3,18 @@ import app from '../src/app';
 import { Delivery } from '../src/models/Delivery';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import * as stellarSdk from '@stellar/stellar-sdk';
 
 let mongoServer: MongoMemoryServer;
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   const mongoUri = mongoServer.getUri();
-  
+
   if (mongoose.connection.readyState !== 0) {
     await mongoose.disconnect();
   }
-  
+
   await mongoose.connect(mongoUri);
 });
 
@@ -29,17 +30,18 @@ beforeEach(async () => {
 describe('Indexer API', () => {
   it('should update delivery correctly on delivery_created event', async () => {
     // Create a dummy delivery in DB
-    const delivery = await Delivery.create({
+    await Delivery.create({
       deliveryId: 'D-12345',
-      status: 'Pending'
+      status: 'Pending',
     });
 
     // Mock stellar-sdk to avoid complex XDR crafting
-    const stellarSdk = require('@stellar/stellar-sdk');
-    jest.spyOn(stellarSdk.xdr.ScVal, 'fromXDR').mockReturnValue({} as any);
+    jest
+      .spyOn(stellarSdk.xdr.ScVal, 'fromXDR')
+      .mockReturnValue({} as unknown as stellarSdk.xdr.ScVal);
     jest.spyOn(stellarSdk, 'scValToNative').mockReturnValue({
       delivery_id: 'D-12345',
-      contract_id: 'C-XYZ-789'
+      contract_id: 'C-XYZ-789',
     });
 
     const response = await request(app)

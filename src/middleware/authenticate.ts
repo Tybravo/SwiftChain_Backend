@@ -8,7 +8,7 @@ import AppError from '../utils/AppError';
 // ─── JWT payload shape ────────────────────────────────────────────────────────
 
 interface JwtPayload {
-  userId: string;  // Changed from 'id' to 'userId' to match login route
+  userId: string; // Changed from 'id' to 'userId' to match login route
   iat?: number;
   exp?: number;
 }
