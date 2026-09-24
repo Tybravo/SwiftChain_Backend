@@ -41,6 +41,27 @@ export class DeliveryHandlers {
       throw error;
     }
   }
+
+  public async processDeliveryStatusUpdatedEvent(xdrPayload: string): Promise<unknown> {
+    try {
+      const nativeData = scValToNative(
+        xdr.ScVal.fromXDR(xdrPayload, 'base64'),
+      ) as Record<string, unknown>;
+
+      const deliveryId = nativeData?.delivery_id;
+      const status = nativeData?.status;
+
+      if (!deliveryId || !status) throw new Error('Missing delivery_id or status');
+
+      const normalizedStatus = typeof status === 'string' ? status : String(status);
+
+      return await deliveryService.updateDeliveryStatus(deliveryId, normalizedStatus);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Error processing delivery_status_updated event: ${errorMessage}`);
+      throw error;
+    }
+  }
 }
 
 export const deliveryHandlers = new DeliveryHandlers();

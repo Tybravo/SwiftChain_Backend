@@ -1,4 +1,5 @@
 import { Server as SocketIOServer } from 'socket.io';
+import authService from '../services/authService';
 import logger from '../config/logger';
 import {
   SocketConnectionMeta,
@@ -11,19 +12,21 @@ import {
   InterServerEvents,
   SocketData,
 } from './socket.types';
+import { messageQueueService } from './messageQueue';
+import env from '../config/env';
 
 /**
  * Interval (ms) between server-initiated ping events.
  * Defaults to 25 s, overridable via SOCKET_PING_INTERVAL_MS env var.
  */
-const PING_INTERVAL_MS = parseInt(process.env.SOCKET_PING_INTERVAL_MS ?? '25000', 10);
+const PING_INTERVAL_MS = env.SOCKET_PING_INTERVAL_MS;
 
 /**
  * Maximum number of consecutive missed pongs before a connection is
  * considered stale and forcibly disconnected.
  * Defaults to 2, overridable via SOCKET_MAX_MISSED_PONGS env var.
  */
-const MAX_MISSED_PONGS = parseInt(process.env.SOCKET_MAX_MISSED_PONGS ?? '2', 10);
+const MAX_MISSED_PONGS = env.SOCKET_MAX_MISSED_PONGS;
 
 /**
  * SocketService manages all business-logic concerns for WebSocket
@@ -43,8 +46,9 @@ export class SocketService {
    * @param socket - The incoming socket instance.
    * @param userId - Optional authenticated user ID extracted from auth token.
    */
-  public registerConnection(socket: TypedSocket, userId?: string): void {
+  public registerConnection(socket: TypedSocket, userId?: string, tokenExp?: number): void {
     const meta: SocketConnectionMeta = {
+      tokenExp: tokenExp,
       socketId: socket.id,
       userId,
       connectedAt: Date.now(),
@@ -54,6 +58,18 @@ export class SocketService {
     };
 
     this.connections.set(socket.id, meta);
+
+    if (userId) {
+      const flushed = messageQueueService.flush(userId, (event, payload, ackCallback) => {
+        socket.emit(event, payload, ackCallback);
+      });
+
+      if (flushed > 0) {
+        logger.info(
+          `[Socket] Flushed ${flushed} queued message(s) for userId=${userId} on reconnect`,
+        );
+      }
+    }
 
     logger.info(
       `[Socket] Connected — id=${socket.id}${userId ? ` userId=${userId}` : ''} | ` +
@@ -216,11 +232,21 @@ export class SocketService {
         staleConnectionsEvicted += 1;
       } else {
         // Send ping and wait for pong response
-        const pingPayload: PingPayload = { timestamp: Date.now() };
-        const socket = io.sockets.sockets.get(socketId);
-        if (socket) {
+      // Send ping and wait for pong response
+      const pingPayload: PingPayload = { timestamp: Date.now() };
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        // Check JWT expiration before sending ping
+        const exp = (socket.data as any).tokenExp as number | undefined;
+        if (exp && exp < Date.now()) {
+          // Token has expired – notify client and disconnect
+          logger.warn(`[Socket] JWT expired for socket id=${socketId}`);
+          socket.emit('auth_expired');
+          socket.disconnect(true);
+        } else {
           socket.emit('ping', pingPayload);
         }
+      }
       }
     }
 
@@ -247,11 +273,68 @@ export class SocketService {
   }
 
   /**
+   * Clear the in-memory connection registry. Called after all sockets have
+   * been forcibly disconnected during graceful shutdown.
+   */
+  public clearConnections(): void {
+    this.connections.clear();
+  }
+
+  /**
    * Return a read-only snapshot of all active connections (for admin/debug
    * endpoints — never expose in public-facing routes).
    */
   public getConnections(): ReadonlyMap<string, SocketConnectionMeta> {
     return this.connections;
+  }
+
+  /**
+   * Validate the JWT token stored on a socket's data against the database.
+   *
+   * Returns true if:
+   *   - The socket has no token/userId (unauthenticated, skip validation).
+   *   - The token is cryptographically valid, not expired, and references
+   *     an existing user whose account is active (not suspended/banned).
+   *
+   * Returns false if the token is missing, malformed, expired, or references
+   * an inactive/non-existent user.
+   *
+   * @param socket - The socket whose token should be validated.
+   * @returns       True if the token is valid (or absent), false otherwise.
+   */
+  public async validateSocketToken(socket: TypedSocket): Promise<boolean> {
+    const token = socket.data.token;
+    const userId = socket.data.userId;
+
+    if (!token || !userId) {
+      return true;
+    }
+
+    try {
+      const decoded = authService.verifyToken(token);
+      const user = await authService.getUserById(decoded.userId);
+
+      if (!user) {
+        logger.warn(`[Socket] Token validation failed — user not found for userId=${userId}`);
+        return false;
+      }
+
+      if (user.status === 'suspended' || user.status === 'banned') {
+        logger.warn(
+          `[Socket] Token validation failed — account ${user.status} for userId=${userId}`,
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.warn(
+        `[Socket] Token validation failed for userId=${userId}: ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+      return false;
+    }
   }
 }
 

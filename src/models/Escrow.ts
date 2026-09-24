@@ -1,5 +1,20 @@
-import mongoose, { Schema, Document, Types, Model } from 'mongoose';
+// src/models/Escrow.ts
+import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
+/** Lifecycle of funds held in a Soroban escrow contract for a delivery. */
+export enum EscrowStatus {
+  PENDING = 'pending',
+  LOCKED = 'locked',
+  RELEASED = 'released',
+  REFUNDED = 'refunded',
+  DISPUTED = 'disputed',
+}
+
+/**
+ * Alias for lock status — kept for backward compatibility. Both `status` and
+ * `lockStatus` are persisted on the schema so the two code paths that evolved
+ * in parallel (lifecycle `status` vs. lock-state `lockStatus`) keep working.
+ */
 export enum EscrowLockStatus {
   PENDING = 'pending',
   LOCKED = 'locked',
@@ -8,6 +23,19 @@ export enum EscrowLockStatus {
   DISPUTED = 'disputed',
 }
 
+/** Escrow states in which funds are actually held by the contract. */
+const FUNDS_HELD_STATUSES: ReadonlySet<EscrowStatus> = new Set([
+  EscrowStatus.LOCKED,
+  EscrowStatus.DISPUTED,
+]);
+
+/** Escrow states that can no longer change. */
+const TERMINAL_STATUSES: ReadonlySet<EscrowStatus> = new Set([
+  EscrowStatus.RELEASED,
+  EscrowStatus.REFUNDED,
+]);
+
+/** The kind of on‑chain operation a recorded transaction hash represents. */
 export type EscrowTransactionType = 'fund' | 'release' | 'refund';
 
 export interface IEscrowTransaction {
@@ -18,83 +46,125 @@ export interface IEscrowTransaction {
 }
 
 export interface IEscrow extends Document {
+  /** Reference to the delivery this escrow secures. */
   delivery: Types.ObjectId;
-  contractId: string;
-  amount: number;
-  asset: string;
+  /** Current escrow lifecycle state. */
+  status: EscrowStatus;
+  /** Lock-state alias of `status` (legacy API consumers). */
   lockStatus: EscrowLockStatus;
+  /** Escrowed amount, denominated in `assetCode` units (not stroops). */
+  amount: number;
+  /** Asset code of the escrowed funds (e.g. `XLM`, `USDC`). */
+  assetCode: string;
+  /** Asset code (legacy alias of `assetCode`, e.g. `XLM`, `USDC`). */
+  asset: string;
+  /** Issuer account for non‑native assets. */
+  assetIssuer?: string;
+  /** Soroban contract id (`C...`) holding the funds. */
+  contractId?: string;
+  /** Stellar account funding the escrow. */
+  payerAddress?: string;
+  /** Stellar account funding the escrow (legacy alias of `payerAddress`). */
   fundedBy?: string;
-  transactions: IEscrowTransaction[];
+  /** Stellar account entitled to the funds on release. */
+  payeeAddress?: string;
+  /** Transaction hash of the successful lock invocation. */
+  lockTransactionHash?: string;
+  /** Transaction hash of the successful release invocation. */
+  releaseTransactionHash?: string;
+  /** Transaction hash of the successful refund invocation. */
+  refundTransactionHash?: string;
   lockedAt?: Date;
   releasedAt?: Date;
   refundedAt?: Date;
+  /** Ledger sequence of the last on‑chain event applied to this record. */
+  lastSyncedLedger?: number;
+  /** Reason recorded when the escrow moved to `disputed`. */
+  disputeReason?: string;
+  /** Timestamp fields provided by Mongoose. */
   createdAt: Date;
   updatedAt: Date;
+  /** Collection of on‑chain transaction hashes. */
+  transactions: IEscrowTransaction[];
+  /** Virtuals */
+  readonly isFundsLocked: boolean;
+  readonly isSettled: boolean;
 }
 
 const EscrowTransactionSchema = new Schema<IEscrowTransaction>(
   {
     hash: { type: String, required: true, trim: true },
-    type: {
-      type: String,
-      enum: ['fund', 'release', 'refund'],
-      required: true,
-    },
+    type: { type: String, enum: ['fund', 'release', 'refund'], required: true },
     ledger: { type: Number },
     recordedAt: { type: Date, default: Date.now },
   },
-  { _id: false },
+  { _id: false }
 );
+
+// Shared defaults/validation for both lifecycle status fields.
+const LOCK_STATUS_VALUES = Object.values(EscrowLockStatus);
+const STATUS_VALUES = Object.values(EscrowStatus);
 
 const EscrowSchema = new Schema<IEscrow>(
   {
-    delivery: {
-      type: Schema.Types.ObjectId,
-      ref: 'Delivery',
-      required: true,
-      unique: true,
-      index: true,
-    },
-    contractId: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-    },
-    amount: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    asset: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    lockStatus: {
-      type: String,
-      enum: Object.values(EscrowLockStatus),
-      default: EscrowLockStatus.PENDING,
-      index: true,
-    },
+    delivery: { type: Schema.Types.ObjectId, ref: 'Delivery', required: true, unique: true, index: true },
+    // Upstream lifecycle state.
+    status: { type: String, enum: STATUS_VALUES, default: EscrowStatus.PENDING, index: true },
+    // Legacy lock-state alias (kept in sync by the service layer).
+    lockStatus: { type: String, enum: LOCK_STATUS_VALUES, default: EscrowLockStatus.PENDING, index: true },
+    amount: { type: Number, required: true, min: 0 },
+    // Both `assetCode` and its legacy alias `asset` are optional at the schema
+    // level so the legacy (asset/fundedBy/lockStatus) and new
+    // (assetCode/payerAddress/status) write paths can both create escrows.
+    assetCode: { type: String, trim: true, uppercase: true, maxlength: 12 },
+    asset: { type: String, trim: true },
+    assetIssuer: { type: String, trim: true },
+    contractId: { type: String, trim: true, unique: true, sparse: true },
+    payerAddress: { type: String, trim: true },
     fundedBy: { type: String, trim: true },
-    transactions: {
-      type: [EscrowTransactionSchema],
-      default: [],
-    },
+    payeeAddress: { type: String, trim: true },
+    lockTransactionHash: { type: String, trim: true },
+    releaseTransactionHash: { type: String, trim: true },
+    refundTransactionHash: { type: String, trim: true },
     lockedAt: { type: Date },
     releasedAt: { type: Date },
     refundedAt: { type: Date },
+    lastSyncedLedger: { type: Number, min: 0 },
+    disputeReason: { type: String, trim: true },
+    transactions: { type: [EscrowTransactionSchema], default: [] },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    toJSON: {
+      virtuals: true,
+      transform(_doc, ret: Record<string, unknown>) {
+        ret.id = ret._id;
+        delete ret._id;
+        delete ret.__v;
+        return ret;
+      },
+    },
+    toObject: { virtuals: true },
+  }
 );
+
+// Virtuals
+EscrowSchema.virtual('isFundsLocked').get(function (this: IEscrow) {
+  return FUNDS_HELD_STATUSES.has(this.status) || this.lockStatus === EscrowLockStatus.LOCKED;
+});
+EscrowSchema.virtual('isSettled').get(function (this: IEscrow) {
+  return (
+    TERMINAL_STATUSES.has(this.status) ||
+    this.lockStatus === EscrowLockStatus.RELEASED ||
+    this.lockStatus === EscrowLockStatus.REFUNDED
+  );
+});
 
 // A given on-chain transaction hash must only ever be recorded once across
 // all escrows, preventing duplicate ingestion by the indexer.
 EscrowSchema.index({ 'transactions.hash': 1 }, { unique: true, sparse: true });
 
-const Escrow =
-  (mongoose.models.Escrow as Model<IEscrow>) || mongoose.model<IEscrow>('Escrow', EscrowSchema);
+const Escrow: Model<IEscrow> = (mongoose.models.Escrow as Model<IEscrow>) || mongoose.model<IEscrow>('Escrow', EscrowSchema);
 
 export default Escrow;
 export { Escrow };
